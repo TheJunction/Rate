@@ -79,10 +79,8 @@ public class Main extends JavaPlugin implements Listener {
                                 }
                             } else {
                                 Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "exec " + p.getName() + " rate positive " + p.getName());
-                                getLogger().info("exec " + p.getName() + " rate positive " + p.getName());
                             }
                         }
-                        Bukkit.getLogger().info("run" + timeMap.get(p.getUniqueId()));
                     }
                 }
             }
@@ -185,7 +183,6 @@ public class Main extends JavaPlugin implements Listener {
                     }
                 } else {
                     Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "exec " + name + " rate " + args[0] + " " + args[1]);
-                    getLogger().info("exec " + name + " rate " + args[0] + " " + args[1]);
                 }
             } else {
                 sender.sendMessage(ChatColor.RED + "Invalid args. Usage: /rate <negative|positive> <playername>");
