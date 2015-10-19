@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2015 CubeXMC. All Rights Reserved.
+ * Created by PantherMan594.
+ */
+
 package net.cubexmc.rate;
 
 import org.bukkit.Bukkit;
@@ -25,10 +30,10 @@ import java.util.UUID;
  */
 public class Main extends JavaPlugin implements Listener {
 
-    Connection conn;
     public MySQLManager mysql = new MySQLManager(this);
     public HashMap<UUID, Integer> timeMap = new HashMap<>();
     public HashMap<UUID, LocalTime> lastMove = new HashMap<>();
+    Connection conn;
 
     @Override
     public void onEnable() {

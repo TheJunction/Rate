@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2015 CubeXMC. All Rights Reserved.
+ * Created by PantherMan594.
+ */
+
 package net.cubexmc.rate;
 
 import code.husky.mysql.MySQL;
