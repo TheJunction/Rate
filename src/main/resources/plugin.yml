@@ -1,0 +1,7 @@
+name: Rate
+main: net.cubexmc.rate.Main
+version: 1.0
+description: Rating System. By PantherMan594. (c) CubeXMC Network.
+commands:
+  rate:
+    description: Rate a user
