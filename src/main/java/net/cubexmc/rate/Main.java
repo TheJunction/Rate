@@ -9,6 +9,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -17,7 +19,10 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+import java.io.IOException;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.time.LocalTime;
 import java.util.HashMap;
@@ -30,17 +35,26 @@ import java.util.UUID;
  */
 public class Main extends JavaPlugin implements Listener {
 
-    public MySQLManager mysql = new MySQLManager(this);
+    private static Connection conn;
     public HashMap<UUID, Integer> timeMap = new HashMap<>();
     public HashMap<UUID, LocalTime> lastMove = new HashMap<>();
-    Connection conn;
 
     @Override
     public void onEnable() {
+        File f = new File(this.getDataFolder() + File.separator + "players.yml");
+        FileConfiguration con = YamlConfiguration.loadConfiguration(f);
+        boolean cont = true;
+        for (int i = 0; cont; i++) {
+            if (con.contains(i + ".uuid") && con.contains(i + ".time")) {
+                timeMap.put(UUID.fromString(con.getString(i + ".uuid")), con.getInt(i + ".time"));
+            } else {
+                cont = false;
+            }
+        }
         Bukkit.getPluginManager().registerEvents(this, this);
         try {
-            this.mysql.setupDB();
-            conn = this.mysql.getDB();
+            Class.forName("com.mysql.jdbc.Driver");
+            conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/CubeXMC", "david", "DavidShen");
         } catch (Exception e) {
             getLogger().warning("Couldn't connect to database. Error: ");
             e.printStackTrace();
@@ -68,7 +82,6 @@ public class Main extends JavaPlugin implements Listener {
                         if (timeMap.get(p.getUniqueId()) >= 120) {
                             timeMap.put(p.getUniqueId(), timeMap.get(p.getUniqueId()) - 120);
                             if (playerDataContainsPlayer(p.getName())) {
-                                mysql.checkConnection();
                                 try {
                                     ResultSet rs = conn.createStatement().executeQuery("SELECT rating FROM ratings WHERE lastname='" + p.getName() + "'");
                                     rs.next();
@@ -89,15 +102,25 @@ public class Main extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        if (!this.getDataFolder().exists()) {
+            this.getDataFolder().mkdir();
+        }
+        File f = new File(this.getDataFolder() + File.separator + "players.yml");
+        FileConfiguration con = YamlConfiguration.loadConfiguration(f);
+        int i = 0;
+        for (UUID uuid : timeMap.keySet()) {
+            con.set(i + ".uuid", uuid.toString());
+            con.set(i + ".time", timeMap.get(uuid));
+            i++;
+        }
         try {
-            this.mysql.closeDB();
-        } catch (Exception e) {
+            con.save(f);
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
     public boolean playerDataContainsPlayer(String name) {
-        this.mysql.checkConnection();
         try {
             ResultSet rs = conn.createStatement().executeQuery("SELECT * FROM ratings WHERE lastname='" + name + "';");
             return rs.next();
@@ -108,7 +131,6 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     public boolean playerDataContainsUuid(String uuid) {
-        this.mysql.checkConnection();
         try {
             ResultSet rs = conn.createStatement().executeQuery("SELECT * FROM ratings WHERE uuid='" + uuid + "';");
             return rs.next();
@@ -121,7 +143,6 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         int rating = 0;
-        this.mysql.checkConnection();
         try {
             ResultSet rs = conn.createStatement().executeQuery("SELECT rating FROM ratings WHERE lastname='" + event.getPlayer().getName() + "'");
             rs.next();
@@ -137,7 +158,6 @@ public class Main extends JavaPlugin implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event)  {
         String name = event.getPlayer().getName();
         UUID uuid = event.getPlayer().getUniqueId();
-        this.mysql.checkConnection();
         try {
             if (playerDataContainsUuid(uuid.toString())) {
                 conn.createStatement().executeUpdate("UPDATE ratings SET lastname='" + name + "' WHERE uuid='" + uuid + "';");
@@ -167,7 +187,6 @@ public class Main extends JavaPlugin implements Listener {
             if (args.length == 2 && (args[0].equals("negative") || args[0].equals("positive"))) {
                 String name = args[1];
                 if (playerDataContainsPlayer(name)) {
-                    this.mysql.checkConnection();
                     try {
                         ResultSet rs = conn.createStatement().executeQuery("SELECT rating FROM ratings WHERE lastname='" + name + "'");
                         rs.next();
