@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.UUID;
@@ -52,12 +53,20 @@ public class Main extends JavaPlugin implements Listener {
             }
         }
         Bukkit.getPluginManager().registerEvents(this, this);
-        try {
-            Class.forName("com.mysql.jdbc.Driver");
-            conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/CubeXMC", "david", "DavidShen");
-        } catch (Exception e) {
-            getLogger().warning("Couldn't connect to database. Error: ");
-            e.printStackTrace();
+        for (int i = 0; i < 10; i++) {
+            try {
+                Class.forName("com.mysql.jdbc.Driver");
+                conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/CubeXMC", "david", "DavidShen");
+                i = 10;
+            } catch (Exception e) {
+                if (i == 9) {
+                    getLogger().warning("Couldn't connect to database. Error:");
+                    e.printStackTrace();
+                } else {
+                    getLogger().warning("Couldn't connect to database. Attempt: " + i);
+                }
+                resetSQL();
+            }
         }
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, new Runnable() {
             @Override
@@ -81,14 +90,28 @@ public class Main extends JavaPlugin implements Listener {
                         }
                         if (timeMap.get(p.getUniqueId()) >= 120) {
                             timeMap.put(p.getUniqueId(), timeMap.get(p.getUniqueId()) - 120);
-                            if (playerDataContainsPlayer(p.getName())) {
-                                try {
-                                    ResultSet rs = conn.createStatement().executeQuery("SELECT rating FROM ratings WHERE lastname='" + p.getName() + "'");
-                                    rs.next();
-                                    int rating = rs.getInt("rating") + 1;
-                                    conn.createStatement().executeUpdate("UPDATE ratings SET rating='" + rating + "' WHERE lastname='" + p.getName() + "'");
-                                } catch (Exception e) {
-                                    e.printStackTrace();
+                            if (playerDataContainsPlayer(p.getName(), false)) {
+                                for (int i = 0; i < 10; i++) {
+                                    try {
+                                        ResultSet rs = conn.createStatement().executeQuery("SELECT rating FROM ratings WHERE lastname='" + p.getName() + "'");
+                                        rs.next();
+                                        int rating = rs.getInt("rating") + 1;
+                                        conn.createStatement().executeUpdate("UPDATE ratings SET rating='" + rating + "' WHERE lastname='" + p.getName() + "'");
+                                        if (rating >= 20) {
+                                            if (rating >= 50) {
+                                                Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "sync console all pex user " + p.getName() + " group add map");
+                                            } else {
+                                                Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "sync console all pex user " + p.getName() + " group add vap");
+                                            }
+                                        } else {
+                                            Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "sync console all pex user " + p.getName() + " group remove vap");
+                                            Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "sync console all pex user " + p.getName() + " group remove map");
+                                        }
+                                        i = 10;
+                                    } catch (SQLException e) {
+                                        e.printStackTrace();
+                                        resetSQL();
+                                    }
                                 }
                             } else {
                                 Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "exec " + p.getName() + " rate positive " + p.getName());
@@ -120,35 +143,50 @@ public class Main extends JavaPlugin implements Listener {
         }
     }
 
-    public boolean playerDataContainsPlayer(String name) {
-        try {
-            ResultSet rs = conn.createStatement().executeQuery("SELECT * FROM ratings WHERE lastname='" + name + "';");
-            return rs.next();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
+    public void resetSQL() {
+        for (int i = 0; i < 10; i++) {
+            try {
+                if (!conn.isClosed()) {
+                    conn.close();
+                }
+                conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/CubeXMC", "david", "DavidShen");
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
         }
     }
 
-    public boolean playerDataContainsUuid(String uuid) {
-        try {
-            ResultSet rs = conn.createStatement().executeQuery("SELECT * FROM ratings WHERE uuid='" + uuid + "';");
-            return rs.next();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
+    public boolean playerDataContainsPlayer(String id, boolean uuid) {
+        for (int i = 0; i < 10; i++) {
+            try {
+                ResultSet rs;
+                if (uuid) {
+                    rs = conn.createStatement().executeQuery("SELECT * FROM ratings WHERE uuid='" + id + "';");
+                } else {
+                    rs = conn.createStatement().executeQuery("SELECT * FROM ratings WHERE lastname='" + id + "';");
+                }
+                return rs.next();
+            } catch (SQLException e) {
+                e.printStackTrace();
+                resetSQL();
+            }
         }
+        return false;
     }
 
     @EventHandler
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         int rating = 0;
-        try {
-            ResultSet rs = conn.createStatement().executeQuery("SELECT rating FROM ratings WHERE lastname='" + event.getPlayer().getName() + "'");
-            rs.next();
-            rating = rs.getInt("rating");
-        } catch (Exception e) {
-            e.printStackTrace();
+        for (int i = 0; i < 10; i++) {
+            try {
+                ResultSet rs = conn.createStatement().executeQuery("SELECT rating FROM ratings WHERE lastname='" + event.getPlayer().getName() + "'");
+                rs.next();
+                rating = rs.getInt("rating");
+                i = 10;
+            } catch (SQLException e) {
+                e.printStackTrace();
+                resetSQL();
+            }
         }
         String msg = event.getFormat().replace("{rating}", "" + rating);
         event.setFormat(msg);
@@ -158,16 +196,20 @@ public class Main extends JavaPlugin implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event)  {
         String name = event.getPlayer().getName();
         UUID uuid = event.getPlayer().getUniqueId();
-        try {
-            if (playerDataContainsUuid(uuid.toString())) {
-                conn.createStatement().executeUpdate("UPDATE ratings SET lastname='" + name + "' WHERE uuid='" + uuid + "';");
-            } else if (playerDataContainsPlayer(name)) {
-                conn.createStatement().executeUpdate("UPDATE ratings SET uuid='" + uuid + "' WHERE lastname='" + name + "';");
-            } else {
-                conn.createStatement().executeUpdate("INSERT INTO ratings(uuid, lastname, rating) VALUES ('" + uuid + "', '" + name + "', 0);");
+        for (int i = 0; i < 10; i++) {
+            try {
+                if (playerDataContainsPlayer(uuid.toString(), true)) {
+                    conn.createStatement().executeUpdate("UPDATE ratings SET lastname='" + name + "' WHERE uuid='" + uuid + "';");
+                } else if (playerDataContainsPlayer(name, false)) {
+                    conn.createStatement().executeUpdate("UPDATE ratings SET uuid='" + uuid + "' WHERE lastname='" + name + "';");
+                } else {
+                    conn.createStatement().executeUpdate("INSERT INTO ratings(uuid, lastname, rating) VALUES ('" + uuid + "', '" + name + "', 0);");
+                }
+                i = 10;
+            } catch (SQLException e) {
+                e.printStackTrace();
+                resetSQL();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 
@@ -186,19 +228,23 @@ public class Main extends JavaPlugin implements Listener {
         if (commandLabel.equalsIgnoreCase("rate")) {
             if (args.length == 2 && (args[0].equals("negative") || args[0].equals("positive"))) {
                 String name = args[1];
-                if (playerDataContainsPlayer(name)) {
-                    try {
-                        ResultSet rs = conn.createStatement().executeQuery("SELECT rating FROM ratings WHERE lastname='" + name + "'");
-                        rs.next();
-                        int rating = rs.getInt("rating");
-                        if (args[0].equals("negative")) {
-                            rating = rating - 1;
-                        } else {
-                            rating = rating + 1;
+                if (playerDataContainsPlayer(name, false)) {
+                    for (int i = 0; i < 10; i++) {
+                        try {
+                            ResultSet rs = conn.createStatement().executeQuery("SELECT rating FROM ratings WHERE lastname='" + name + "'");
+                            rs.next();
+                            int rating = rs.getInt("rating");
+                            if (args[0].equals("negative")) {
+                                rating = rating - 1;
+                            } else {
+                                rating = rating + 1;
+                            }
+                            conn.createStatement().executeUpdate("UPDATE ratings SET rating='" + rating + "' WHERE lastname='" + name + "'");
+                            i = 10;
+                        } catch (SQLException e) {
+                            e.printStackTrace();
+                            resetSQL();
                         }
-                        conn.createStatement().executeUpdate("UPDATE ratings SET rating='" + rating + "' WHERE lastname='" + name + "'");
-                    } catch (Exception e) {
-                        e.printStackTrace();
                     }
                 } else {
                     Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "exec " + name + " rate " + args[0] + " " + args[1]);
