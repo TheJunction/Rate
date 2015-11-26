@@ -7,6 +7,7 @@ package net.cubexmc.rate;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -16,7 +17,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -25,7 +25,6 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.UUID;
 
@@ -38,7 +37,7 @@ public class Main extends JavaPlugin implements Listener {
 
     private static Connection conn;
     public HashMap<UUID, Integer> timeMap = new HashMap<>();
-    public HashMap<UUID, LocalTime> lastMove = new HashMap<>();
+    public HashMap<UUID, Location> lastMove = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -73,15 +72,9 @@ public class Main extends JavaPlugin implements Listener {
             public void run() {
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     if (lastMove.containsKey(p.getUniqueId())) {
-                        LocalTime currTm = java.time.LocalTime.now();
-                        LocalTime lastTm = lastMove.get(p.getUniqueId());
-                        if (currTm.getHour() == lastTm.getHour() && currTm.getMinute() - lastTm.getMinute() <= 5) {
-                            if (timeMap.containsKey(p.getUniqueId())) {
-                                timeMap.put(p.getUniqueId(), timeMap.get(p.getUniqueId()) + 1);
-                            } else {
-                                timeMap.put(p.getUniqueId(), 1);
-                            }
-                        } else if (currTm.getHour() - 1 == lastTm.getHour() && currTm.getMinute() + 60 - lastTm.getMinute() <= 5) {
+                        Location lastLoc = lastMove.get(p.getUniqueId());
+                        Location currLoc = p.getLocation();
+                        if (Math.abs(lastLoc.getX() - currLoc.getX()) >= 5 || Math.abs(lastLoc.getZ() - currLoc.getZ()) >= 5) {
                             if (timeMap.containsKey(p.getUniqueId())) {
                                 timeMap.put(p.getUniqueId(), timeMap.get(p.getUniqueId()) + 1);
                             } else {
@@ -210,13 +203,6 @@ public class Main extends JavaPlugin implements Listener {
                 e.printStackTrace();
                 resetSQL();
             }
-        }
-    }
-
-    @EventHandler
-    public void onPlayerMove(PlayerMoveEvent event) {
-        if (event.getFrom().getBlockX() != event.getTo().getBlockX() || event.getFrom().getBlockZ() != event.getTo().getBlockZ()) {
-            lastMove.put(event.getPlayer().getUniqueId(), java.time.LocalTime.now());
         }
     }
 
