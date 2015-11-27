@@ -111,10 +111,16 @@ public class Main extends JavaPlugin implements Listener {
     public void onPlayerChat(AsyncPlayerChatEvent e) {
         int rating = (int) Math.floor(playerPoints.getAPI().look(e.getPlayer().getUniqueId()) / 1000);
         String msg;
-        if (rating >= 5) {
+        if (rating >= 20) {
+            msg = e.getFormat().replace("{rating}", ChatColor.DARK_BLUE + "" + rating);
+        } else if (rating >= 15) {
+            msg = e.getFormat().replace("{rating}", ChatColor.BLUE + "" + rating);
+        } else if (rating >= 10) {
             msg = e.getFormat().replace("{rating}", "" + rating);
-        } else {
+        } else if (rating >= 5) {
             msg = e.getFormat().replace("{rating}", ChatColor.GRAY + "" + rating);
+        } else {
+            msg = e.getFormat().replace("{rating}", ChatColor.DARK_GRAY + "" + rating);
         }
         e.setFormat(msg);
     }
