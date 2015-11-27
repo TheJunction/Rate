@@ -109,7 +109,7 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onPlayerChat(AsyncPlayerChatEvent e) {
-        String msg = e.getFormat().replace("{rating}", e.getPlayer().getUniqueId().toString());
+        String msg = e.getFormat().replace("{rating}", "" + Math.floor(playerPoints.getAPI().look(e.getPlayer().getUniqueId()) / 1000));
         e.setFormat(msg);
     }
 
