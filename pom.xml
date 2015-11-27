@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
-  ~ Copyright (c) 2015 David Shen. All Rights Reserved.
+  ~ Copyright (c) 2015 CubeXMC. All Rights Reserved.
   ~ Created by PantherMan594.
   -->
 
@@ -59,6 +59,11 @@
             <id>spigot-repo</id>
             <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
         </repository>
+        <repository>
+            <id>dakani</id>
+            <name>Dakani Nexus Repo</name>
+            <url>http://repo.dakanilabs.com/content/repositories/public</url>
+        </repository>
     </repositories>
     <dependencies>
         <dependency>
@@ -66,6 +71,11 @@
             <artifactId>spigot-api</artifactId>
             <version>${spigot.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.black_ixx</groupId>
+            <artifactId>PlayerPoints</artifactId>
+            <version>2.1.4-SNAPSHOT</version>
         </dependency>
     </dependencies>
 </project>
