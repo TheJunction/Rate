@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 CubeXMC. All Rights Reserved.
+ * Copyright (c) 2016 CubeXMC. All Rights Reserved.
  * Created by PantherMan594.
  */
 
@@ -133,7 +133,11 @@ public class Main extends JavaPlugin implements Listener {
         if (commandLabel.equalsIgnoreCase("rate")) {
             if (args.length == 2 && (args[0].equals("negative") || args[0].equals("positive"))) {
                 String name = args[1];
-                playerPoints.getAPI().give(name, 1000);
+                if (args[0].equals("negative")) {
+                    playerPoints.getAPI().set(name, playerPoints.getAPI().look(name) - 1000);
+                } else {
+                    playerPoints.getAPI().set(name, playerPoints.getAPI().look(name) + 1000);
+                }
             } else {
                 sender.sendMessage(ChatColor.RED + "Invalid args. Usage: /rate <negative|positive> <playername>");
             }
