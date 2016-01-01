@@ -22,7 +22,6 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.sql.Connection;
 import java.util.HashMap;
 import java.util.UUID;
 
@@ -33,7 +32,6 @@ import java.util.UUID;
  */
 public class Main extends JavaPlugin implements Listener {
 
-    private static Connection conn;
     public HashMap<UUID, Integer> timeMap = new HashMap<>();
     public HashMap<UUID, Location> lastMove = new HashMap<>();
     private PlayerPoints playerPoints;
