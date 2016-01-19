@@ -4,4 +4,4 @@ build:
   script: "mvn clean package -B"
   artifacts:
     paths:
-    - target/Fallout.jar
+    - target/Rate.jar
