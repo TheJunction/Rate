@@ -5,25 +5,34 @@
 
 package net.cubexmc.rate;
 
+import me.edge209.OnTime.DataIO;
+import me.edge209.OnTime.OnTimeAPI;
 import org.black_ixx.playerpoints.PlayerPoints;
+import org.black_ixx.playerpoints.models.SortedPlayer;
+import org.black_ixx.playerpoints.storage.StorageHandler;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scoreboard.DisplaySlot;
+import org.bukkit.scoreboard.Objective;
+import org.bukkit.scoreboard.Scoreboard;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.UUID;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.*;
 
 /**
  * Created by David on 7/9/2015.
@@ -32,8 +41,9 @@ import java.util.UUID;
  */
 public class Main extends JavaPlugin implements Listener {
 
-    public HashMap<UUID, Integer> timeMap = new HashMap<>();
-    public HashMap<UUID, Location> lastMove = new HashMap<>();
+    public HashMap<UUID, Long> timeCache;
+    public HashMap<UUID, Integer> pointsCache;
+    public HashMap<String, String> uuidCache;
     private PlayerPoints playerPoints;
 
     @Override
@@ -43,59 +53,24 @@ public class Main extends JavaPlugin implements Listener {
         } else {
             getLogger().warning("Could not hook into PlayerPoints, disabling...");
             setEnabled(false);
+            return;
         }
-        File f = new File(this.getDataFolder() + File.separator + "players.yml");
-        FileConfiguration con = YamlConfiguration.loadConfiguration(f);
-        boolean cont = true;
-        for (int i = 0; cont; i++) {
-            if (con.contains(i + ".uuid") && con.contains(i + ".time")) {
-                timeMap.put(UUID.fromString(con.getString(i + ".uuid")), con.getInt(i + ".time"));
-            } else {
-                cont = false;
-            }
-        }
+        timeCache = new HashMap<>();
+        pointsCache = new HashMap<>();
+        uuidCache = new HashMap<>();
         Bukkit.getPluginManager().registerEvents(this, this);
-        Bukkit.getScheduler().runTaskTimerAsynchronously(this, new Runnable() {
-            @Override
-            public void run() {
-                for (Player p : Bukkit.getOnlinePlayers()) {
-                    if (lastMove.containsKey(p.getUniqueId())) {
-                        Location lastLoc = lastMove.get(p.getUniqueId());
-                        Location currLoc = p.getLocation();
-                        if (Math.abs(lastLoc.getX() - currLoc.getX()) >= 5 || Math.abs(lastLoc.getZ() - currLoc.getZ()) >= 5) {
-                            if (timeMap.containsKey(p.getUniqueId())) {
-                                timeMap.put(p.getUniqueId(), timeMap.get(p.getUniqueId()) + 1);
-                            } else {
-                                timeMap.put(p.getUniqueId(), 1);
-                            }
-                        }
-                        if (timeMap.get(p.getUniqueId()) >= 60) {
-                            timeMap.put(p.getUniqueId(), timeMap.get(p.getUniqueId()) - 60);
-                            playerPoints.getAPI().give(p.getUniqueId(), 50);
-                        }
-                    }
-                }
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            updateTime(p);
+            pointsCache.put(p.getUniqueId(), (int) Math.floor(playerPoints.getAPI().look(p.getUniqueId()) / 1000));
+            Scoreboard scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
+            Objective objective = scoreboard.registerNewObjective("points", "dummy");
+            objective.setDisplayName("Points Leaderboard");
+            objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+            HashMap<String, Integer> lBoard = getLead(p.getName());
+            for (String name : lBoard.keySet()) {
+                objective.getScore(name).setScore(lBoard.get(name));
             }
-        }, 0, 1200);
-    }
-
-    @Override
-    public void onDisable() {
-        if (!this.getDataFolder().exists()) {
-            this.getDataFolder().mkdir();
-        }
-        File f = new File(this.getDataFolder() + File.separator + "players.yml");
-        FileConfiguration con = YamlConfiguration.loadConfiguration(f);
-        int i = 0;
-        for (UUID uuid : timeMap.keySet()) {
-            con.set(i + ".uuid", uuid.toString());
-            con.set(i + ".time", timeMap.get(uuid));
-            i++;
-        }
-        try {
-            con.save(f);
-        } catch (IOException e) {
-            e.printStackTrace();
+            p.setScoreboard(scoreboard);
         }
     }
 
@@ -106,8 +81,28 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     @EventHandler
+    public void onJoin(PlayerJoinEvent e) {
+        updateTime(e.getPlayer());
+        pointsCache.put(e.getPlayer().getUniqueId(), (int) Math.floor(playerPoints.getAPI().look(e.getPlayer().getUniqueId()) / 1000));
+        Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
+        Objective objective = scoreboard.registerNewObjective("points", "dummy");
+        objective.setDisplayName("Points Leaderboard");
+        objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+        HashMap<String, Integer> lBoard = getLead(e.getPlayer().getName());
+        for (String name : lBoard.keySet()) {
+            objective.getScore(name).setScore(lBoard.get(name));
+        }
+        e.getPlayer().setScoreboard(scoreboard);
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent e) {
+        updateTime(e.getPlayer());
+    }
+
+    @EventHandler
     public void onPlayerChat(AsyncPlayerChatEvent e) {
-        int rating = (int) Math.floor(playerPoints.getAPI().look(e.getPlayer().getUniqueId()) / 1000);
+        int rating = pointsCache.get(e.getPlayer().getUniqueId());
         String msg;
         if (rating >= 20) {
             msg = e.getFormat().replace("{rating}", ChatColor.DARK_BLUE + "" + rating);
@@ -123,6 +118,73 @@ public class Main extends JavaPlugin implements Listener {
         e.setFormat(msg);
     }
 
+    public void updateTime(Player p) {
+        if (timeCache.containsKey(p.getUniqueId())) {
+            Long oldTime = timeCache.get(p.getUniqueId());
+            Long newTime = DataIO.getPlayerTimeData(p.getName(), OnTimeAPI.data.TOTALPLAY);
+            if (newTime > oldTime) {
+                Long diff = oldTime - newTime;
+                if (diff > 2 * 60 * 60 * 1000) {
+                    rate(p.getUniqueId(), false);
+                }
+            }
+        }
+        timeCache.put(p.getUniqueId(), DataIO.getPlayerTimeData(p.getName(), OnTimeAPI.data.TOTALPLAY));
+    }
+
+    public void rate(UUID uuid, boolean negative) {
+        int newPoints = playerPoints.getAPI().look(uuid) + (negative ? -1000 : 1000);
+        playerPoints.getAPI().set(uuid, newPoints);
+        pointsCache.put(uuid, (int) Math.floor(newPoints / 1000));
+    }
+
+    public HashMap<String, Integer> getLead(String name) {
+        SortedSet leaders = sortLeaders(playerPoints, playerPoints.getModuleForClass(StorageHandler.class).getPlayers());
+        SortedPlayer[] array = (SortedPlayer[]) leaders.toArray(new SortedPlayer[leaders.size()]);
+        HashMap<String, Integer> leadPoints = new HashMap<>();
+        for (int i = 0; i < array.length; ++i) {
+            SortedPlayer player = array[i];
+            String pName = Bukkit.getOfflinePlayer(UUID.fromString(player.getName())).getName();
+            if (pName == null) {
+                if (uuidCache.containsKey(player.getName())) {
+                    pName = uuidCache.get(player.getName());
+                } else {
+                    try {
+                        URL url = new URL("https://api.mojang.com/user/profiles/" + player.getName().replace("-", "") + "/names");
+                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                        connection.setUseCaches(false);
+                        connection.setDoInput(true);
+                        connection.setDoOutput(true);
+                        JSONArray jsonArray = (JSONArray) new JSONParser().parse(new InputStreamReader(connection.getInputStream()));
+                        JSONObject jsonProfile = (JSONObject) jsonArray.get(0);
+                        pName = (String) jsonProfile.get("name");
+                        uuidCache.put(player.getName(), pName);
+                    } catch (Exception e) {
+                        pName = "null";
+                    }
+                }
+            }
+            if (i < 10 || pName.equals(name)) {
+                if (i > 9) {
+                    leadPoints.put(ChatColor.GRAY + "...", player.getPoints() - 1);
+                }
+                leadPoints.put(ChatColor.AQUA + "" + (i + 1) + ". " + ChatColor.GRAY + pName, player.getPoints());
+            }
+        }
+        return leadPoints;
+    }
+
+    private SortedSet<SortedPlayer> sortLeaders(PlayerPoints plugin, Collection<String> players) {
+        TreeSet<SortedPlayer> sorted = new TreeSet<>();
+
+        for (String name : players) {
+            int points = plugin.getAPI().look(UUID.fromString(name));
+            sorted.add(new SortedPlayer(name, points));
+        }
+
+        return sorted;
+    }
+
     public boolean onCommand(CommandSender sender, Command cmd, String commandLabel, String[] args) {
         if (sender instanceof Player) {
             sender.sendMessage(ChatColor.RED + "This command may only be run from the console.");
@@ -131,11 +193,11 @@ public class Main extends JavaPlugin implements Listener {
         if (commandLabel.equalsIgnoreCase("rate")) {
             if (args.length == 2 && (args[0].equals("negative") || args[0].equals("positive"))) {
                 String name = args[1];
-                if (args[0].equals("negative")) {
-                    playerPoints.getAPI().set(name, playerPoints.getAPI().look(name) - 1000);
-                } else {
-                    playerPoints.getAPI().set(name, playerPoints.getAPI().look(name) + 1000);
+                UUID uuid = Bukkit.getOfflinePlayer(name).getUniqueId();
+                if (Bukkit.getPlayer(name) != null) {
+                    uuid = Bukkit.getPlayer(name).getUniqueId();
                 }
+                rate(uuid, args[0].equals("negative"));
             } else {
                 sender.sendMessage(ChatColor.RED + "Invalid args. Usage: /rate <negative|positive> <playername>");
             }
