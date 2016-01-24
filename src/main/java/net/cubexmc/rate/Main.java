@@ -5,6 +5,8 @@
 
 package net.cubexmc.rate;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import me.edge209.OnTime.DataIO;
 import me.edge209.OnTime.OnTimeAPI;
 import org.black_ixx.playerpoints.PlayerPoints;
@@ -25,12 +27,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
 
@@ -82,17 +79,25 @@ public class Main extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent e) {
-        updateTime(e.getPlayer());
-        pointsCache.put(e.getPlayer().getUniqueId(), (int) Math.floor(playerPoints.getAPI().look(e.getPlayer().getUniqueId()) / 1000));
-        Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
+        final Player p = e.getPlayer();
+        updateTime(p);
+        pointsCache.put(p.getUniqueId(), (int) Math.floor(playerPoints.getAPI().look(p.getUniqueId()) / 1000));
+        final Scoreboard oldBoard = p.getScoreboard();
+        Scoreboard scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
         Objective objective = scoreboard.registerNewObjective("points", "dummy");
         objective.setDisplayName("Points Leaderboard");
         objective.setDisplaySlot(DisplaySlot.SIDEBAR);
-        HashMap<String, Integer> lBoard = getLead(e.getPlayer().getName());
+        HashMap<String, Integer> lBoard = getLead(p.getName());
         for (String name : lBoard.keySet()) {
             objective.getScore(name).setScore(lBoard.get(name));
         }
-        e.getPlayer().setScoreboard(scoreboard);
+        p.setScoreboard(scoreboard);
+        Bukkit.getScheduler().runTaskLater(this, new Runnable() {
+            @Override
+            public void run() {
+                p.setScoreboard(oldBoard);
+            }
+        }, 600);
     }
 
     @EventHandler
@@ -150,14 +155,11 @@ public class Main extends JavaPlugin implements Listener {
                     pName = uuidCache.get(player.getName());
                 } else {
                     try {
-                        URL url = new URL("https://api.mojang.com/user/profiles/" + player.getName().replace("-", "") + "/names");
-                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                        connection.setUseCaches(false);
-                        connection.setDoInput(true);
-                        connection.setDoOutput(true);
-                        JSONArray jsonArray = (JSONArray) new JSONParser().parse(new InputStreamReader(connection.getInputStream()));
-                        JSONObject jsonProfile = (JSONObject) jsonArray.get(0);
-                        pName = (String) jsonProfile.get("name");
+                        URL url = new URL("https://sessionserver.mojang.com/session/minecraft/profile/" + player.getName().replace("-", ""));
+                        Scanner jsonScanner = new Scanner(url.openConnection().getInputStream(), "UTF-8");
+                        String json = jsonScanner.next();
+                        pName = (((JsonObject) new JsonParser().parse(json)).get("name")).toString();
+                        jsonScanner.close();
                         uuidCache.put(player.getName(), pName);
                     } catch (Exception e) {
                         pName = "null";
@@ -166,7 +168,7 @@ public class Main extends JavaPlugin implements Listener {
             }
             if (i < 10 || pName.equals(name)) {
                 if (i > 9) {
-                    leadPoints.put(ChatColor.GRAY + "...", player.getPoints() - 1);
+                    leadPoints.put(ChatColor.GRAY + "...", player.getPoints() + 1);
                 }
                 leadPoints.put(ChatColor.AQUA + "" + (i + 1) + ". " + ChatColor.GRAY + pName, player.getPoints());
             }
