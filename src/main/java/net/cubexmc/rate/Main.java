@@ -5,6 +5,8 @@
 
 package net.cubexmc.rate;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import me.edge209.OnTime.DataIO;
 import me.edge209.OnTime.OnTimeAPI;
 import org.black_ixx.playerpoints.PlayerPoints;
@@ -25,12 +27,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
 
@@ -158,14 +155,11 @@ public class Main extends JavaPlugin implements Listener {
                     pName = uuidCache.get(player.getName());
                 } else {
                     try {
-                        URL url = new URL("https://api.mojang.com/user/profiles/" + player.getName().replace("-", "") + "/names");
-                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                        connection.setUseCaches(false);
-                        connection.setDoInput(true);
-                        connection.setDoOutput(true);
-                        JSONArray jsonArray = (JSONArray) new JSONParser().parse(new InputStreamReader(connection.getInputStream()));
-                        JSONObject jsonProfile = (JSONObject) jsonArray.get(0);
-                        pName = (String) jsonProfile.get("name");
+                        URL url = new URL("https://sessionserver.mojang.com/session/minecraft/profile/" + player.getName().replace("-", ""));
+                        Scanner jsonScanner = new Scanner(url.openConnection().getInputStream(), "UTF-8");
+                        String json = jsonScanner.next();
+                        pName = (((JsonObject) new JsonParser().parse(json)).get("name")).toString().replace("\"", "");
+                        jsonScanner.close();
                         uuidCache.put(player.getName(), pName);
                     } catch (Exception e) {
                         pName = "null";
