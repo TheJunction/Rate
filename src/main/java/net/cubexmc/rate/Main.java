@@ -7,8 +7,6 @@ package net.cubexmc.rate;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import me.edge209.OnTime.DataIO;
-import me.edge209.OnTime.OnTimeAPI;
 import org.black_ixx.playerpoints.PlayerPoints;
 import org.black_ixx.playerpoints.models.SortedPlayer;
 import org.black_ixx.playerpoints.storage.StorageHandler;
@@ -21,7 +19,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scoreboard.DisplaySlot;
@@ -38,7 +35,6 @@ import java.util.*;
  */
 public class Main extends JavaPlugin implements Listener {
 
-    public HashMap<UUID, Long> timeCache;
     public HashMap<UUID, Integer> pointsCache;
     public HashMap<String, String> uuidCache;
     private PlayerPoints playerPoints;
@@ -52,12 +48,10 @@ public class Main extends JavaPlugin implements Listener {
             setEnabled(false);
             return;
         }
-        timeCache = new HashMap<>();
         pointsCache = new HashMap<>();
         uuidCache = new HashMap<>();
         Bukkit.getPluginManager().registerEvents(this, this);
         for (Player p : Bukkit.getOnlinePlayers()) {
-            updateTime(p);
             pointsCache.put(p.getUniqueId(), (int) Math.floor(playerPoints.getAPI().look(p.getUniqueId()) / 1000));
             Scoreboard scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
             Objective objective = scoreboard.registerNewObjective("points", "dummy");
@@ -80,7 +74,6 @@ public class Main extends JavaPlugin implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent e) {
         final Player p = e.getPlayer();
-        updateTime(p);
         pointsCache.put(p.getUniqueId(), (int) Math.floor(playerPoints.getAPI().look(p.getUniqueId()) / 1000));
         final Scoreboard oldBoard = p.getScoreboard();
         Scoreboard scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
@@ -101,11 +94,6 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onQuit(PlayerQuitEvent e) {
-        updateTime(e.getPlayer());
-    }
-
-    @EventHandler
     public void onPlayerChat(AsyncPlayerChatEvent e) {
         int rating = pointsCache.get(e.getPlayer().getUniqueId());
         String msg;
@@ -121,20 +109,6 @@ public class Main extends JavaPlugin implements Listener {
             msg = e.getFormat().replace("{rating}", ChatColor.DARK_GRAY + "" + rating);
         }
         e.setFormat(msg);
-    }
-
-    public void updateTime(Player p) {
-        if (timeCache.containsKey(p.getUniqueId())) {
-            Long oldTime = timeCache.get(p.getUniqueId());
-            Long newTime = DataIO.getPlayerTimeData(p.getName(), OnTimeAPI.data.TOTALPLAY);
-            if (newTime > oldTime) {
-                Long diff = oldTime - newTime;
-                if (diff > 2 * 60 * 60 * 1000) {
-                    rate(p.getUniqueId(), false);
-                }
-            }
-        }
-        timeCache.put(p.getUniqueId(), DataIO.getPlayerTimeData(p.getName(), OnTimeAPI.data.TOTALPLAY));
     }
 
     public void rate(UUID uuid, boolean negative) {
